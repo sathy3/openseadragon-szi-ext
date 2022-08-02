@@ -432,11 +432,14 @@ $.TileSource.prototype = {
         var _this = this,
             callbackName,
             callback,
+            makerequest,
             readySource,
-            options,
+            options = {},
             urlParts,
             filename,
-            lastDot;
+            lastDot,
+            BaseTileSource,
+            headers = this.ajaxHeaders;
 
 
         if( url ) {
@@ -456,12 +459,81 @@ $.TileSource.prototype = {
                 url = url.substr(0, hashIdx);
             }
         }
+        makerequest = function(url, headers){
+            if( url.match(/\.js$/) ){
+                //TODO: Its not very flexible to require tile sources to end jsonp
+                //      request for info  with a url that ends with '.js' but for
+                //      now it's the only way I see to distinguish uniformly.
+                callbackName = url.split('/').pop().replace('.js', '');
+                $.jsonp({
+                    url: url,
+                    async: false,
+                    callbackName: callbackName,
+                    callback: callback
+                });
+            } else {
+                // request info via xhr asynchronously.
+                $.makeAjaxRequest( {
+                    url: url,
+                    postData: postData,
+                    withCredentials: _this.ajaxWithCredentials,
+                    headers: headers,
+                    success: function( xhr ) {
+                        var data = processResponse( xhr );
+                        callback( data );
+                    },
+                    error: function ( xhr, exc ) {
+                        var msg;
+                        /*
+                            IE < 10 will block XHR requests to different origins. Any property access on the request
+                            object will raise an exception which we'll attempt to handle by formatting the original
+                            exception rather than the second one raised when we try to access xhr.status
+                         */
+                        try {
+                            msg = "HTTP " + xhr.status + " attempting to load TileSource: " + url;
+                        } catch ( e ) {
+                            var formattedExc;
+                            if ( typeof ( exc ) === "undefined" || !exc.toString ) {
+                                formattedExc = "Unknown error";
+                            } else {
+                                formattedExc = exc.toString();
+                            }
 
-        callback = function( data ){
+                            msg = formattedExc + " attempting to load TileSource: " + url;
+                        }
+
+                        $.console.error(msg);
+
+                        /***
+                         * Raised when an error occurs loading a TileSource.
+                         *
+                         * @event open-failed
+                         * @memberof OpenSeadragon.TileSource
+                         * @type {object}
+                         * @property {OpenSeadragon.TileSource} eventSource - A reference to the TileSource which raised the event.
+                         * @property {String} message
+                         * @property {String} source
+                         * @property {String} postData - HTTP POST data (usually but not necessarily in k=v&k2=v2... form,
+                         *      see TileSource::getPostData) or null
+                         * @property {?Object} userData - Arbitrary subscriber-defined object.
+                         */
+                        _this.raiseEvent( 'open-failed', {
+                            message: msg,
+                            source: url,
+                            postData: postData
+                        });
+                    }
+                });
+            }
+        };
+        callback = function ( data ){
             if( typeof (data) === "string" ) {
                 data = $.parseXml( data );
             }
             var $TileSource = $.TileSource.determineType( _this, data, url );
+            if(BaseTileSource === undefined){
+                BaseTileSource = $TileSource;
+            }
             if ( !$TileSource ) {
                 /**
                  * Raised when an error occurs loading a TileSource.
@@ -477,93 +549,36 @@ $.TileSource.prototype = {
                 _this.raiseEvent( 'open-failed', { message: "Unable to load TileSource", source: url } );
                 return;
             }
-
-            options = $TileSource.prototype.configure.apply( _this, [ data, url, postData ]);
-            if (options.ajaxWithCredentials === undefined) {
-                options.ajaxWithCredentials = _this.ajaxWithCredentials;
+            var opt = {};
+            opt = $TileSource.prototype.configure.apply( _this, [ data, url, postData ]);
+            if (opt.ajaxWithCredentials === undefined) {
+                opt.ajaxWithCredentials = _this.ajaxWithCredentials;
             }
+            if(opt.getMoreInfo !== undefined){
+                Object.assign(opt.getMoreInfo.headers, headers);
+                makerequest(opt.getMoreInfo.url, opt.getMoreInfo.headers);
+                delete opt.getMoreInfo;
+                $.extend(options, opt);
 
-            readySource = new $TileSource( options );
-            _this.ready = true;
-            /**
-             * Raised when a TileSource is opened and initialized.
-             *
-             * @event ready
-             * @memberof OpenSeadragon.TileSource
-             * @type {object}
-             * @property {OpenSeadragon.TileSource} eventSource - A reference to the TileSource which raised the event.
-             * @property {Object} tileSource
-             * @property {?Object} userData - Arbitrary subscriber-defined object.
-             */
-            _this.raiseEvent( 'ready', { tileSource: readySource } );
+            } else{
+                $.extend(true, options, opt);
+                readySource = new BaseTileSource( options );
+                _this.ready = true;
+                /**
+                 * Raised when a TileSource is opened and initialized.
+                 *
+                 * @event ready
+                 * @memberof OpenSeadragon.TileSource
+                 * @type {object}
+                 * @property {OpenSeadragon.TileSource} eventSource - A reference to the TileSource which raised the event.
+                 * @property {Object} tileSource
+                 * @property {?Object} userData - Arbitrary subscriber-defined object.
+                 */
+                _this.raiseEvent( 'ready', { tileSource: readySource } );
+            }
         };
 
-        if( url.match(/\.js$/) ){
-            //TODO: Its not very flexible to require tile sources to end jsonp
-            //      request for info  with a url that ends with '.js' but for
-            //      now it's the only way I see to distinguish uniformly.
-            callbackName = url.split('/').pop().replace('.js', '');
-            $.jsonp({
-                url: url,
-                async: false,
-                callbackName: callbackName,
-                callback: callback
-            });
-        } else {
-            // request info via xhr asynchronously.
-            $.makeAjaxRequest( {
-                url: url,
-                postData: postData,
-                withCredentials: this.ajaxWithCredentials,
-                headers: this.ajaxHeaders,
-                success: function( xhr ) {
-                    var data = processResponse( xhr );
-                    callback( data );
-                },
-                error: function ( xhr, exc ) {
-                    var msg;
-
-                    /*
-                        IE < 10 will block XHR requests to different origins. Any property access on the request
-                        object will raise an exception which we'll attempt to handle by formatting the original
-                        exception rather than the second one raised when we try to access xhr.status
-                     */
-                    try {
-                        msg = "HTTP " + xhr.status + " attempting to load TileSource: " + url;
-                    } catch ( e ) {
-                        var formattedExc;
-                        if ( typeof ( exc ) === "undefined" || !exc.toString ) {
-                            formattedExc = "Unknown error";
-                        } else {
-                            formattedExc = exc.toString();
-                        }
-
-                        msg = formattedExc + " attempting to load TileSource: " + url;
-                    }
-
-                    $.console.error(msg);
-
-                    /***
-                     * Raised when an error occurs loading a TileSource.
-                     *
-                     * @event open-failed
-                     * @memberof OpenSeadragon.TileSource
-                     * @type {object}
-                     * @property {OpenSeadragon.TileSource} eventSource - A reference to the TileSource which raised the event.
-                     * @property {String} message
-                     * @property {String} source
-                     * @property {String} postData - HTTP POST data (usually but not necessarily in k=v&k2=v2... form,
-                     *      see TileSource::getPostData) or null
-                     * @property {?Object} userData - Arbitrary subscriber-defined object.
-                     */
-                    _this.raiseEvent( 'open-failed', {
-                        message: msg,
-                        source: url,
-                        postData: postData
-                    });
-                }
-            });
-        }
+        makerequest(url, headers);
 
     },
 
@@ -920,6 +935,10 @@ function processResponse( xhr ){
 
     if ( !xhr ) {
         throw new Error( $.getString( "Errors.Security" ) );
+    }else if (xhr.status === 206){
+        if(responseText[responseText.length - 1] === "P" || responseText[responseText.length - 1] === "p" ){
+            responseText = responseText.slice(0, responseText.length - 1);
+        }
     } else if ( xhr.status !== 200 && xhr.status !== 0 ) {
         status     = xhr.status;
         statusText = ( status === 404 ) ?
