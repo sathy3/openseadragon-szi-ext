@@ -41,6 +41,7 @@ module.exports = function(grunt) {
             //"src/profiler.js",
             "src/tilesource.js",
             "src/dzitilesource.js",
+            "src/szitilesource.js",
             "src/iiiftilesource.js",
             "src/osmtilesource.js",
             "src/tmstilesource.js",
