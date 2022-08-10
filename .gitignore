@@ -8,3 +8,5 @@ instrumented/
 /nbproject/private/
 .directory
 local-test
+index.html
+testfiles

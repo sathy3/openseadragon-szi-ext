@@ -36,47 +36,57 @@
 
 (function($){
 
-    /**
-     * @class SziTileSource
-     * @memberof OpenSeadragon
-     * @extends OpenSeadragon.DziTileSource
-     * @param {Number|Object} width - the pixel width of the image or the idiomatic
-     *      options object which is used instead of positional arguments.
-     * @param {Number} height
-     * @param {Number} tileSize
-     * @param {Number} tileOverlap
-     * @param {String} tilesUrl
-     * @param {String} fileFormat
-     * @param {Object} szDirectory
-     * @param {OpenSeadragon.DisplayRect[]} displayRects
-     * @property {String} tilesUrl
-     * @property {String} fileFormat
-     * @property {Object} szDirectory
-     * @property {OpenSeadragon.DisplayRect[]} displayRects
-     */
-        $.SziTileSource = function( tilesUrl, indexObject ) {
-            var options = {};
-            if( $.isPlainObject(tilesUrl)){
-                options = tilesUrl;
-            }else{
-                options = {
-                    tilesUrl: tilesUrl,
-                    indexObject: indexObject,
-                };
-                //set some safe defaults and build additional calls for Dzitilesource
-            }
-            options.loadTilesWithAjax = true;
-            this.loadTilesWithAjax = true;
-            this.ready = false;
-            this.indexObject = options.indexObject;
-            if(options.trueUrl !== undefined && options.trueUrl !== options.tilesUrl){
-                // Url has been modified lower in the chain, revert to default;
-                options.tilesUrl = options.trueUrl;
-            }
-            this.tilesUrl = options.tilesUrl;
-            delete options.indexObject;
-            $.DziTileSource.apply(this, [options]);
+/**
+ * @class SziTileSource
+ * @memberof OpenSeadragon
+ * @extends OpenSeadragon.DziTileSource
+ * @param {String | Object} tilesUrl
+ * @param {Object} indexObject
+ * // The Following parameters are required by the constructor of DziTileSource -> TileSource
+ * @param {Number} width
+ * @param {Number} height
+ * @param {Number} tileSize
+ * @param {Number} tileOverlap
+ * @param {String} fileFormat
+ * @property {String} fileFormat
+ * @param {OpenSeadragon.DisplayRect[]} displayRects
+ * @property {Object} indexObject
+ * @property {OpenSeadragon.DisplayRect[]} displayRects
+ * The Following Properties are added by DziTileSource
+ * @property {String} fileFormat
+ * @property {OpenSeadragon.DisplayRect[]} displayRects
+ */
+$.SziTileSource = function( tilesUrl, indexObject, height, tileSize, tileOverlap, fileFormat, displayRects, minLevel, maxLevel) {
+    var options = {};
+    if( $.isPlainObject(tilesUrl)){
+        options = tilesUrl;
+    }else{
+        options = {
+            tilesUrl: arguments[ 0 ],
+            indexObject: arguments[ 1 ],
+            width: arguments[ 2 ],
+            height: arguments[ 3 ],
+            tileSize: arguments[ 4 ],
+            tileOverlap: arguments[ 5 ],
+            fileFormat: arguments[ 6 ],
+            displayRects: arguments[ 7 ],
+            minLevel: arguments[ 8 ],
+            maxLevel: arguments[ 9 ]
         };
+        //set some safe defaults and build additional calls for Dzitilesource
+    }
+    options.loadTilesWithAjax = true;
+    this.loadTilesWithAjax = true;
+    this.ready = false;
+    this.indexObject = options.indexObject;
+    if(options.trueUrl !== undefined && options.trueUrl !== options.tilesUrl){
+        // Url has been modified lower in the chain, revert to default;
+        options.tilesUrl = options.trueUrl;
+    }
+    this.tilesUrl = options.tilesUrl;
+    delete options.indexObject;
+    $.DziTileSource.apply(this, [options]);
+};
 
         $.extend($.SziTileSource.prototype, $.DziTileSource.prototype, {
 
@@ -92,6 +102,7 @@
             },
             configure: function(data, url, postData, skip){
                 var options = {};
+                // this does not load tiles
                 this.loadTilesWithAjax = true;
                 if(data.url !== undefined){
                     options = data;
